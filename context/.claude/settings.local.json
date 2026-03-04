@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/fabia/Desktop/Personal/personal/work/XIXIM/System/crm-for-business-clusters/**)",
+      "Read(//c/Users/fabia/Desktop/Personal/personal/work/XIXIM/System/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

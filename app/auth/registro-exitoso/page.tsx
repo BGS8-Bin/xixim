@@ -1,0 +1,41 @@
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { XiximLogo } from "@/components/xixim-logo"
+import { CheckCircle, Mail } from "lucide-react"
+import Link from "next/link"
+
+export default function RegistroExitosoPage() {
+  return (
+    <div className="flex min-h-svh w-full items-center justify-center bg-sidebar p-6 md:p-10">
+      <div className="w-full max-w-sm">
+        <div className="flex flex-col gap-6">
+          <div className="flex justify-center mb-4">
+            <XiximLogo className="h-16 w-auto" variant="light" />
+          </div>
+          <Card>
+            <CardHeader className="text-center">
+              <div className="flex justify-center mb-4">
+                <div className="rounded-full bg-secondary/20 p-3">
+                  <CheckCircle className="h-8 w-8 text-secondary" />
+                </div>
+              </div>
+              <CardTitle className="text-2xl">¡Registro Exitoso!</CardTitle>
+              <CardDescription>Tu cuenta ha sido creada correctamente</CardDescription>
+            </CardHeader>
+            <CardContent className="text-center">
+              <div className="flex items-center justify-center gap-2 text-muted-foreground mb-4">
+                <Mail className="h-5 w-5" />
+                <span>Revisa tu correo electrónico</span>
+              </div>
+              <p className="text-sm text-muted-foreground mb-6">
+                Te hemos enviado un enlace de confirmación. Por favor, verifica tu correo para activar tu cuenta.
+              </p>
+              <Link href="/auth/login" className="text-primary underline underline-offset-4 text-sm">
+                Volver al inicio de sesión
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -1,0 +1,11 @@
+-- Add missing columns to events table
+ALTER TABLE public.events
+ADD COLUMN IF NOT EXISTS event_type TEXT,
+ADD COLUMN IF NOT EXISTS is_all_day BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS location_url TEXT,
+ADD COLUMN IF NOT EXISTS is_virtual BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS virtual_link TEXT,
+ADD COLUMN IF NOT EXISTS max_attendees INTEGER,
+ADD COLUMN IF NOT EXISTS registration_required BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT true,
+ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'draft';
