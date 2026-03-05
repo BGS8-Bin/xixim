@@ -161,7 +161,7 @@ export default function SolicitudAdmisionPage() {
         return
       }
 
-      const { data: newAdmission, error } = await supabase.from("admission_requests").insert({
+      const { error } = await supabase.from("admission_requests").insert({
         ...formData,
         founding_year: formData.founding_year ? Number.parseInt(formData.founding_year) : null,
         years_in_operation: yearsInOperation,
@@ -169,24 +169,22 @@ export default function SolicitudAdmisionPage() {
         services_interest: selectedServices,
         fiscal_document_url: fiscalUrl,
         brochure_url: brochureUrl,
-      }).select().single()
+      })
 
       if (error) throw error
 
       // Enviar notificación de bienvenida
-      if (newAdmission) {
-        try {
-          const { NotificationService } = await import("@/features/notifications/services")
-          await NotificationService.notifyAdmissionReceived({
-            contactName: newAdmission.contact_name,
-            contactEmail: newAdmission.contact_email,
-            contactPhone: newAdmission.contact_phone,
-            companyName: newAdmission.company_name,
-          })
-        } catch (notifError) {
-          console.error("Error enviando notificación de admisión recibida:", notifError)
-          // No bloqueamos el flujo si falla la notificación
-        }
+      try {
+        const { NotificationService } = await import("@/features/notifications/services")
+        await NotificationService.notifyAdmissionReceived({
+          contactName: formData.contact_name,
+          contactEmail: formData.contact_email,
+          contactPhone: formData.contact_phone,
+          companyName: formData.company_name,
+        })
+      } catch (notifError) {
+        console.error("Error enviando notificación de admisión recibida:", notifError)
+      // No bloqueamos el flujo si falla la notificación
       }
 
       router.push("/solicitud-admision/enviada")
