@@ -135,7 +135,6 @@ export default function SolicitudAdmisionPage() {
 
   const handleSubmit = async () => {
     setIsSubmitting(true)
-    const supabase = createClient()
 
     try {
       // Validar documentos obligatorios
@@ -145,7 +144,7 @@ export default function SolicitudAdmisionPage() {
         return
       }
 
-      // Subir documentos
+      // Subir documentos usando el cliente de supabase público (solo storage)
       setUploadingDocs(true)
       const fiscalUrl = await uploadFile(fiscalDoc, "fiscal")
       const brochureUrl = await uploadFile(brochure, "brochures")
@@ -161,17 +160,25 @@ export default function SolicitudAdmisionPage() {
         return
       }
 
-      const { error } = await supabase.from("admission_requests").insert({
-        ...formData,
-        founding_year: formData.founding_year ? Number.parseInt(formData.founding_year) : null,
-        years_in_operation: yearsInOperation,
-        is_sat_registered: isSatRegistered,
-        services_interest: selectedServices,
-        fiscal_document_url: fiscalUrl,
-        brochure_url: brochureUrl,
+      // Enviar al API route del servidor (usa service role key, ignora RLS)
+      const response = await fetch("/api/admissions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...formData,
+          founding_year: formData.founding_year ? Number.parseInt(formData.founding_year) : null,
+          years_in_operation: yearsInOperation,
+          is_sat_registered: isSatRegistered,
+          services_interest: selectedServices,
+          fiscal_document_url: fiscalUrl,
+          brochure_url: brochureUrl,
+        }),
       })
 
-      if (error) throw error
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || "Error al enviar la solicitud")
+      }
 
       // Enviar notificación de bienvenida
       try {
@@ -184,7 +191,7 @@ export default function SolicitudAdmisionPage() {
         })
       } catch (notifError) {
         console.error("Error enviando notificación de admisión recibida:", notifError)
-      // No bloqueamos el flujo si falla la notificación
+        // No bloqueamos el flujo si falla la notificación
       }
 
       router.push("/solicitud-admision/enviada")
