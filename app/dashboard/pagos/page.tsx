@@ -146,7 +146,7 @@ export default async function PagosPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <Button variant="ghost" size="sm" asChild>
-                            <Link href={`/ dashboard / pagos / ${payment.id} `}>
+                            <Link href={`/dashboard/pagos/${payment.id}`}>
                               <Eye className="h-4 w-4" />
                             </Link>
                           </Button>
