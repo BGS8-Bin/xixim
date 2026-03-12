@@ -25,6 +25,9 @@ export class NotificationService {
             console.log('📧 [MOCK] Email a:', notification.to)
             console.log('   Subject:', notification.subject)
             console.log('   ⚠️  SendGrid API Key no configurada - usa mock')
+            try {
+                require('fs').appendFileSync('sendgrid-mock.log', new Date().toISOString() + ' MOCK email sent to: ' + notification.to + '\n');
+            } catch (e) { }
             return { success: true, messageId: 'mock-email-' + Date.now() }
         }
 
@@ -69,11 +72,17 @@ export class NotificationService {
             if (!response.ok) {
                 const error = await response.text()
                 console.error('Error enviando email:', error)
+                try {
+                    require('fs').appendFileSync('sendgrid-error.log', new Date().toISOString() + ' ' + error + '\n');
+                } catch (e) { }
                 return { success: false, error: `SendGrid error: ${response.status}` }
             }
 
             const messageId = response.headers.get('x-message-id') || 'unknown'
             console.log('✅ Email enviado exitosamente:', messageId)
+            try {
+                require('fs').appendFileSync('sendgrid-success.log', new Date().toISOString() + ' ' + messageId + '\n');
+            } catch (e) { }
             return { success: true, messageId }
         } catch (error) {
             console.error('Error enviando email:', error)

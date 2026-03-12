@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SendCampaignDialog } from '@/components/campaigns/send-campaign-dialog'
@@ -12,6 +13,7 @@ interface SendCampaignButtonProps {
 
 export function SendCampaignButton({ announcementId, announcementTitle }: SendCampaignButtonProps) {
     const [open, setOpen] = useState(false)
+    const router = useRouter()
 
     return (
         <>
@@ -26,8 +28,7 @@ export function SendCampaignButton({ announcementId, announcementTitle }: SendCa
                 open={open}
                 onOpenChange={setOpen}
                 onSuccess={() => {
-                    // Recargar la página para actualizar el dashboard
-                    window.location.reload()
+                    router.push('/dashboard/comunicacion')
                 }}
             />
         </>

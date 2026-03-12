@@ -62,7 +62,7 @@ export function wrapInEmailTemplate(contentHtml: string, priority?: string): str
           <tr>
             <td style="background:#f8fafc;padding:24px 40px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;text-align:center;">
               <p style="margin:0 0 4px;color:#64748b;font-size:12px;line-height:1.6;">
-                Este mensaje fue enviado por <strong>XIXIM Cluster Empresarial</strong>
+                Este mensaje fue enviado por <strong>XIXIM Cluster de Innovación y Tecnología Durango</strong>
               </p>
               <p style="margin:0;color:#94a3b8;font-size:11px;">
                 Si tienes dudas, contacta a nuestro equipo directamente.

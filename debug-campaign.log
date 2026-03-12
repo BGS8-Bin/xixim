@@ -1,0 +1,6 @@
+[2026-03-12T18:09:03.946Z] Started executeCampaign: bc3b480a-b2d7-4c58-ab3d-50293b9582cd, send_via_email: true
+[2026-03-12T18:09:04.080Z] Fetched recipients. Count: 1
+[2026-03-12T18:09:04.081Z] Passed condition, formatting emails...
+[2026-03-12T18:38:35.114Z] Started executeCampaign: bf162b1f-0dd8-4f89-91a5-d329e6bbb08b, send_via_email: true
+[2026-03-12T18:38:35.257Z] Fetched recipients. Count: 1
+[2026-03-12T18:38:35.258Z] Passed condition, formatting emails...

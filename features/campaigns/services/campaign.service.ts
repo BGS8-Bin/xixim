@@ -283,6 +283,7 @@ export class CampaignService {
             .eq('id', campaignId)
 
         console.log(`🚀 Iniciando ejecución de campaña: ${campaign.name}`)
+        try { require('fs').appendFileSync('debug-campaign.log', `[${new Date().toISOString()}] Started executeCampaign: ${campaignId}, send_via_email: ${campaign.send_via_email}\n`); } catch (e) { }
 
         try {
             // Obtener destinatarios
@@ -293,13 +294,17 @@ export class CampaignService {
                 .eq('email_status', 'pending')
 
             if (recipientsError) {
+                try { require('fs').appendFileSync('debug-campaign.log', `[${new Date().toISOString()}] Error fetching recipients: ${recipientsError.message}\n`); } catch (e) { }
                 throw new Error('Error obteniendo destinatarios')
             }
+
+            try { require('fs').appendFileSync('debug-campaign.log', `[${new Date().toISOString()}] Fetched recipients. Count: ${recipients?.length}\n`); } catch (e) { }
 
             const announcement = campaign.announcement as Announcement
 
             // Enviar emails si está habilitado
             if (campaign.send_via_email && recipients && recipients.length > 0) {
+                try { require('fs').appendFileSync('debug-campaign.log', `[${new Date().toISOString()}] Passed condition, formatting emails...\n`); } catch (e) { }
                 const emailRecipients = recipients.map((r: any) => ({
                     email: r.recipient_email,
                     name: r.recipient_name || 'Empresa',
