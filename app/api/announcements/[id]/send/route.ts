@@ -118,10 +118,8 @@ export async function POST(
 
         // Si se debe ejecutar inmediatamente, ejecutar la campaña
         if (executeImmediately && !scheduledAt) {
-            // Ejecutar en background (no esperar respuesta)
-            CampaignService.executeCampaign(campaign.id).catch((error) => {
-                console.error('Error ejecutando campaña:', error)
-            })
+            // Ejecutar esperando respuesta para no perder el contexto de request (requerido por Supabase SSR)
+            await CampaignService.executeCampaign(campaign.id)
 
             return NextResponse.json({
                 success: true,
