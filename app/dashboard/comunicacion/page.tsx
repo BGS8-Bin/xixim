@@ -7,6 +7,7 @@ import { Megaphone, Plus, Eye, Edit, Trash2, MoreHorizontal, Send, FileText } fr
 import Link from "next/link"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ComunicacionFilters } from "@/components/comunicacion/comunicacion-filters"
+import { DeleteAnnouncementButton } from "@/components/campaigns/delete-announcement-button"
 
 interface Announcement {
   id: string
@@ -200,10 +201,7 @@ export default async function ComunicacionPage() {
                                 </Link>
                               </DropdownMenuItem>
                             )}
-                            <DropdownMenuItem className="text-destructive">
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Eliminar
-                            </DropdownMenuItem>
+                            <DeleteAnnouncementButton id={announcement.id} title={announcement.title} />
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>

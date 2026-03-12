@@ -93,7 +93,7 @@ export function SendCampaignDialog({
         }
     }, [open, announcementId])
 
-    const fetchPreview = async () => {
+    const fetchPreview = useCallback(async () => {
         try {
             setLoadingPreview(true)
             const response = await fetch('/api/announcements/preview-audience', {
@@ -117,7 +117,13 @@ export function SendCampaignDialog({
         } finally {
             setLoadingPreview(false)
         }
-    }
+    }, [filters, sendToAllCompanies, sendToContacts])
+
+    useEffect(() => {
+        if (open) {
+            fetchPreview()
+        }
+    }, [fetchPreview, open])
 
     const handleSendTest = async () => {
         try {
@@ -214,7 +220,6 @@ export function SendCampaignDialog({
 
     const handleNext = () => {
         if (currentStep === 'audience') {
-            fetchPreview()
             setCurrentStep('preview_content')
         } else if (currentStep === 'preview_content') {
             setCurrentStep('options')
@@ -261,36 +266,35 @@ export function SendCampaignDialog({
 
                     {/* Paso 1: Selección de Audiencia */}
                     <TabsContent value="audience" className="space-y-4">
-                        <AudienceSelector
-                            filters={filters}
-                            sendToAllCompanies={sendToAllCompanies}
-                            onFiltersChange={setFilters}
-                            onSendToAllChange={setSendToAllCompanies}
-                        />
+                        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                            {/* Columna izquierda: Filtros */}
+                            <div className="lg:col-span-2 space-y-4">
+                                <AudienceSelector
+                                    filters={filters}
+                                    sendToAllCompanies={sendToAllCompanies}
+                                    onFiltersChange={setFilters}
+                                    onSendToAllChange={setSendToAllCompanies}
+                                />
 
-                        <div className="flex items-start space-x-3 rounded-lg border p-4">
-                            <Checkbox
-                                id="send-to-contacts"
-                                checked={sendToContacts}
-                                onCheckedChange={(checked) => setSendToContacts(checked as boolean)}
-                            />
-                            <div className="flex-1">
-                                <Label htmlFor="send-to-contacts" className="text-sm font-medium">
-                                    Incluir contactos adicionales de las empresas
-                                </Label>
-                                <p className="text-sm text-muted-foreground mt-1">
-                                    Enviar también a todos los contactos registrados de cada empresa
-                                </p>
+                                <div className="flex items-start space-x-3 rounded-lg border p-4">
+                                    <Checkbox
+                                        id="send-to-contacts"
+                                        checked={sendToContacts}
+                                        onCheckedChange={(checked) => setSendToContacts(checked as boolean)}
+                                    />
+                                    <div className="flex-1">
+                                        <Label htmlFor="send-to-contacts" className="text-sm font-medium">
+                                            Incluir contactos adicionales
+                                        </Label>
+                                        <p className="text-sm text-muted-foreground mt-1">
+                                            Enviar también a todos los contactos registrados de cada empresa
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    </TabsContent>
 
-                    {/* Paso 2: Destinatarios + Contenido del Email */}
-                    <TabsContent value="preview_content" className="space-y-4">
-                        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-
-                            {/* Columna izquierda: destinatarios */}
-                            <div className="lg:col-span-2 space-y-2">
+                            {/* Columna derecha: Destinatarios */}
+                            <div className="lg:col-span-3 space-y-2">
                                 <div className="flex items-center justify-between">
                                     <Label className="flex items-center gap-2 font-semibold text-sm">
                                         <Users className="h-4 w-4" />
@@ -357,9 +361,12 @@ export function SendCampaignDialog({
                                     )}
                                 </ScrollArea>
                             </div>
+                        </div>
+                    </TabsContent>
 
-                            {/* Columna derecha: contenido del email */}
-                            <div className="lg:col-span-3 space-y-3">
+                    {/* Paso 2: Contenido del Email */}
+                    <TabsContent value="preview_content" className="space-y-4">
+                        <div className="space-y-3">
                                 {/* Asunto */}
                                 <div className="space-y-1.5">
                                     <Label htmlFor="email-subject" className="text-sm font-semibold flex items-center gap-2">
@@ -446,7 +453,6 @@ export function SendCampaignDialog({
                                 <p className="text-xs text-muted-foreground">
                                     El encabezado y pie XIXIM se agregan automáticamente al enviar.
                                 </p>
-                            </div>
                         </div>
                     </TabsContent>
 
