@@ -9,9 +9,10 @@ import type { CampaignFilters } from '@/lib/types/database'
  */
 export async function POST(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    props: { params: Promise<{ id: string }> }
 ) {
     try {
+        const params = await props.params;
         const supabase = await createClient()
 
         // Verificar autenticación
@@ -52,6 +53,9 @@ export async function POST(
             sendgridTemplateId,
             scheduledAt,
             executeImmediately = true,
+            customEmailSubject,
+            customEmailHtml,
+            selectedRecipients,
         } = body
 
         // Verificar que el anuncio existe y está publicado
@@ -85,23 +89,32 @@ export async function POST(
             sendgridTemplateId,
             scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
             createdBy: user.id,
+            customEmailSubject,
+            customEmailHtml,
+            selectedRecipients,
         })
 
-        // Obtener empresas filtradas
-        const companies = await CampaignService.getFilteredCompanies(
-            filters as CampaignFilters,
-            sendToAllCompanies
-        )
-
-        if (companies.length === 0) {
-            return NextResponse.json(
-                { error: 'No se encontraron empresas con los filtros especificados' },
-                { status: 400 }
+        if (selectedRecipients && selectedRecipients.length > 0) {
+            // Crear destinatarios basados en la selección explícita
+            await CampaignService.createRecipientsFromSelection(campaign.id, selectedRecipients)
+        } else {
+        // Comportamiento por defecto (basado en filtros)
+            // Obtener empresas filtradas
+            const companies = await CampaignService.getFilteredCompanies(
+                filters as CampaignFilters,
+                sendToAllCompanies
             )
-        }
 
-        // Crear destinatarios
-        await CampaignService.createRecipients(campaign.id, companies, sendToContacts)
+            if (companies.length === 0) {
+                return NextResponse.json(
+                    { error: 'No se encontraron empresas con los filtros especificados' },
+                    { status: 400 }
+                )
+            }
+
+            // Crear destinatarios
+            await CampaignService.createRecipients(campaign.id, companies, sendToContacts)
+        }
 
         // Si se debe ejecutar inmediatamente, ejecutar la campaña
         if (executeImmediately && !scheduledAt) {

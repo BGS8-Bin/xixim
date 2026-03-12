@@ -18,7 +18,7 @@ export class NotificationService {
     /**
      * Envía notificación por email usando SendGrid
      */
-    private static async sendEmail(notification: EmailNotification): Promise<NotificationResult['email']> {
+    private static async sendEmail(notification: EmailNotification): Promise<NonNullable<NotificationResult['email']>> {
         const apiKey = process.env.SENDGRID_API_KEY
 
         if (!apiKey || apiKey === 'your_sendgrid_api_key_here') {
@@ -33,7 +33,6 @@ export class NotificationService {
                 personalizations: [
                     {
                         to: [{ email: notification.to }],
-                        dynamic_template_data: notification.templateData || {},
                     },
                 ],
                 from: {
@@ -43,8 +42,9 @@ export class NotificationService {
             }
 
             // Usar template o contenido directo
-            if (notification.templateId) {
+            if (notification.templateId && notification.templateId.trim() !== '' && notification.templateId !== 'd-your_template_id_here') {
                 body.template_id = notification.templateId
+                body.personalizations[0].dynamic_template_data = notification.templateData || {}
             } else {
                 body.personalizations[0].subject = notification.subject
                 body.content = [
@@ -54,6 +54,8 @@ export class NotificationService {
                     },
                 ]
             }
+
+            console.log('Sending body to SendGrid:', JSON.stringify(body, null, 2));
 
             const response = await fetch(this.SENDGRID_API_URL, {
                 method: 'POST',
@@ -85,7 +87,7 @@ export class NotificationService {
     /**
      * Envía notificación por WhatsApp usando Twilio
      */
-    private static async sendWhatsApp(notification: WhatsAppNotification): Promise<NotificationResult['whatsapp']> {
+    private static async sendWhatsApp(notification: WhatsAppNotification): Promise<NonNullable<NotificationResult['whatsapp']>> {
         const accountSid = process.env.TWILIO_ACCOUNT_SID
         const authToken = process.env.TWILIO_AUTH_TOKEN
         const fromNumber = process.env.TWILIO_WHATSAPP_FROM

@@ -11,7 +11,7 @@ import { SendCampaignButton } from './send-campaign-button'
 import { CampaignsDashboard } from '@/components/campaigns/campaigns-dashboard'
 
 interface PageProps {
-    params: { id: string }
+    params: Promise<{ id: string }>
 }
 
 const typeLabels: Record<string, { label: string; color: string }> = {
@@ -35,7 +35,8 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
     archived: { label: 'Archivado', variant: 'default' },
 }
 
-export default async function AnnouncementDetailPage({ params }: PageProps) {
+export default async function AnnouncementDetailPage(props: PageProps) {
+    const params = await props.params;
     const supabase = await createClient()
 
     // Obtener el anuncio

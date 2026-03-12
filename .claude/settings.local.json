@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(find:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(cd \"C:\\\\Users\\\\fabia\\\\Desktop\\\\Personal\\\\personal\\\\work\\\\XIXIM\\\\System\\\\crm-for-business-clusters\" && npm install @tiptap/extension-link 2>&1 | tail -5)",
+      "Bash(cd \"C:\\\\Users\\\\fabia\\\\Desktop\\\\Personal\\\\personal\\\\work\\\\XIXIM\\\\System\\\\crm-for-business-clusters\" && npx tsc --noEmit 2>&1 | head -50)",
+      "Bash(cd \"C:\\\\Users\\\\fabia\\\\Desktop\\\\Personal\\\\personal\\\\work\\\\XIXIM\\\\System\\\\crm-for-business-clusters\" && npx tsc --noEmit 2>&1 | grep -E \"\\(rich-text|campaign\\\\.service|send-campaign|email-template\\)\")",
+      "Bash(cd \"C:\\\\Users\\\\fabia\\\\Desktop\\\\Personal\\\\personal\\\\work\\\\XIXIM\\\\System\\\\crm-for-business-clusters\" && npx next build 2>&1 | tail -20)"
     ],
     "deny": [],
     "ask": []

@@ -107,46 +107,85 @@ ALTER TABLE announcement_campaigns ENABLE ROW LEVEL SECURITY;
 ALTER TABLE announcement_recipients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE announcement_tracking_events ENABLE ROW LEVEL SECURITY;
 
+-- Función utilitaria para crear políticas de forma segura
+CREATE OR REPLACE FUNCTION create_policy_if_not_exists(
+    policy_name text,
+    table_name text,
+    cmd text,
+    role_name text,
+    qual text,
+    with_check text
+)
+RETURNS void AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_policies
+        WHERE policyname = policy_name
+        AND tablename = table_name
+    ) THEN
+        IF with_check IS NOT NULL AND qual IS NOT NULL THEN
+            EXECUTE format('CREATE POLICY %I ON %I FOR %s TO %s USING (%s) WITH CHECK (%s)',
+                policy_name, table_name, cmd, role_name, qual, with_check);
+        ELSIF with_check IS NOT NULL THEN
+            EXECUTE format('CREATE POLICY %I ON %I FOR %s TO %s WITH CHECK (%s)',
+                policy_name, table_name, cmd, role_name, with_check);
+        ELSIF qual IS NOT NULL THEN
+            EXECUTE format('CREATE POLICY %I ON %I FOR %s TO %s USING (%s)',
+                policy_name, table_name, cmd, role_name, qual);
+        ELSE
+            EXECUTE format('CREATE POLICY %I ON %I FOR %s TO %s',
+                policy_name, table_name, cmd, role_name);
+        END IF;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
 -- Políticas para announcement_campaigns
-CREATE POLICY "Admins and editors can view campaigns" ON announcement_campaigns
-  FOR SELECT TO authenticated USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'editor'))
-  );
+SELECT create_policy_if_not_exists(
+  'Admins and editors can view campaigns', 'announcement_campaigns', 'SELECT', 'authenticated', 
+  'EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN (''admin'', ''editor''))', NULL
+);
 
-CREATE POLICY "Admins and editors can create campaigns" ON announcement_campaigns
-  FOR INSERT TO authenticated WITH CHECK (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'editor'))
-  );
+SELECT create_policy_if_not_exists(
+  'Admins and editors can create campaigns', 'announcement_campaigns', 'INSERT', 'authenticated', 
+  NULL, 'EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN (''admin'', ''editor''))'
+);
 
-CREATE POLICY "Admins and editors can update campaigns" ON announcement_campaigns
-  FOR UPDATE TO authenticated USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'editor'))
-  );
+SELECT create_policy_if_not_exists(
+  'Admins and editors can update campaigns', 'announcement_campaigns', 'UPDATE', 'authenticated', 
+  'EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN (''admin'', ''editor''))', NULL
+);
 
-CREATE POLICY "Admins can delete campaigns" ON announcement_campaigns
-  FOR DELETE TO authenticated USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-  );
+SELECT create_policy_if_not_exists(
+  'Admins can delete campaigns', 'announcement_campaigns', 'DELETE', 'authenticated', 
+  'EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = ''admin'')', NULL
+);
 
 -- Políticas para announcement_recipients
-CREATE POLICY "Admins and editors can view recipients" ON announcement_recipients
-  FOR SELECT TO authenticated USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'editor'))
-  );
+SELECT create_policy_if_not_exists(
+  'Admins and editors can view recipients', 'announcement_recipients', 'SELECT', 'authenticated', 
+  'EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN (''admin'', ''editor''))', NULL
+);
 
-CREATE POLICY "System can manage recipients" ON announcement_recipients
-  FOR ALL TO authenticated USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'editor'))
-  );
+SELECT create_policy_if_not_exists(
+  'System can manage recipients', 'announcement_recipients', 'ALL', 'authenticated', 
+  'EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN (''admin'', ''editor''))', NULL
+);
 
 -- Políticas para announcement_tracking_events
-CREATE POLICY "Admins and editors can view tracking events" ON announcement_tracking_events
-  FOR SELECT TO authenticated USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'editor'))
-  );
+SELECT create_policy_if_not_exists(
+  'Admins and editors can view tracking events', 'announcement_tracking_events', 'SELECT', 'authenticated', 
+  'EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN (''admin'', ''editor''))', NULL
+);
 
-CREATE POLICY "System can insert tracking events" ON announcement_tracking_events
-  FOR INSERT TO authenticated WITH CHECK (true); -- Webhooks necesitan poder insertar
+SELECT create_policy_if_not_exists(
+  'System can insert tracking events', 'announcement_tracking_events', 'INSERT', 'authenticated', 
+  NULL, 'true'
+);
+
+-- Limpiar función utilitaria
+DROP FUNCTION IF EXISTS create_policy_if_not_exists(text, text, text, text, text, text);
 
 -- Índices para performance
 CREATE INDEX IF NOT EXISTS idx_campaigns_announcement ON announcement_campaigns(announcement_id);

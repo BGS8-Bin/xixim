@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Send, Mail, MessageCircle, Loader2, TestTube, Calendar } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Send, Mail, MessageCircle, Loader2, TestTube, Calendar, Eye, Users, Edit3, Monitor } from 'lucide-react'
 import { toast } from 'sonner'
 import {
     Dialog,
@@ -17,15 +17,29 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { AudienceSelector } from './audience-selector'
 import type { CampaignFilters } from '@/lib/types/database'
-
+import { createClient } from '@/lib/supabase/client'
+import { RichTextEditor } from '@/components/ui/rich-text-editor'
+import { wrapInEmailTemplate } from '@/lib/email-template'
 interface SendCampaignDialogProps {
     announcementId: string
     announcementTitle: string
     open: boolean
     onOpenChange: (open: boolean) => void
     onSuccess?: () => void
+}
+
+interface RecipientPreview {
+    id: string
+    companyId: string
+    contactId: string | null
+    type: string
+    companyName: string
+    name: string
+    email: string
+    phone: string | null
 }
 
 export function SendCampaignDialog({
@@ -37,20 +51,73 @@ export function SendCampaignDialog({
 }: SendCampaignDialogProps) {
     const [loading, setLoading] = useState(false)
     const [sendingTest, setSendingTest] = useState(false)
-    const [currentStep, setCurrentStep] = useState<'audience' | 'options' | 'confirm'>('audience')
+    const [loadingPreview, setLoadingPreview] = useState(false)
+    const [currentStep, setCurrentStep] = useState<'audience' | 'preview_content' | 'options' | 'confirm'>('audience')
+    const [contentView, setContentView] = useState<'edit' | 'preview'>('edit')
 
     // Configuración de audiencia
     const [filters, setFilters] = useState<CampaignFilters>({})
     const [sendToAllCompanies, setSendToAllCompanies] = useState(true)
     const [sendToContacts, setSendToContacts] = useState(false)
 
+    // Preview de audiencia
+    const [previewRecipients, setPreviewRecipients] = useState<RecipientPreview[]>([])
+    const [selectedRecipients, setSelectedRecipients] = useState<string[]>([])
+
     // Opciones de envío
     const [sendViaEmail, setSendViaEmail] = useState(true)
     const [sendViaWhatsapp, setSendViaWhatsapp] = useState(false)
     const [scheduledAt, setScheduledAt] = useState<string>('')
 
-    // Configuración
+    // Configuración y Contenido
     const [campaignName, setCampaignName] = useState(`Campaña: ${announcementTitle}`)
+    const [emailSubject, setEmailSubject] = useState(`${announcementTitle} - XIXIM Cluster`)
+    const [emailHtmlBody, setEmailHtmlBody] = useState('<p>Cargando contenido...</p>')
+
+    // Cargar contenido inicial del anuncio cuando se abre el modal
+    useEffect(() => {
+        if (open) {
+            setCurrentStep('audience')
+            setContentView('edit')
+            const fetchAnnouncement = async () => {
+                const supabase = createClient()
+                const { data } = await supabase.from('announcements').select('content, excerpt, title').eq('id', announcementId).single()
+                if (data) {
+                    let defaultHtml = `<h2>${data.title}</h2>`
+                    if (data.excerpt) defaultHtml += `<p><em>${data.excerpt}</em></p>`
+                    defaultHtml += data.content
+                    setEmailHtmlBody(defaultHtml)
+                }
+            }
+            fetchAnnouncement()
+        }
+    }, [open, announcementId])
+
+    const fetchPreview = async () => {
+        try {
+            setLoadingPreview(true)
+            const response = await fetch('/api/announcements/preview-audience', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    filters,
+                    sendToAllCompanies,
+                    sendToContacts
+                })
+            })
+            const data = await response.json()
+            if (data.success) {
+                setPreviewRecipients(data.recipients)
+                setSelectedRecipients(data.recipients.map((r: any) => r.id))
+            } else {
+                toast.error('Error cargando vista previa de audiencia')
+            }
+        } catch (error) {
+            toast.error('Error cargando vista previa')
+        } finally {
+            setLoadingPreview(false)
+        }
+    }
 
     const handleSendTest = async () => {
         try {
@@ -86,6 +153,23 @@ export function SendCampaignDialog({
 
             if (!sendViaEmail && !sendViaWhatsapp) {
                 toast.error('Debes seleccionar al menos un canal de envío')
+                setLoading(false)
+                return
+            }
+
+            const selectedRecipientsData = previewRecipients
+                .filter(r => selectedRecipients.includes(r.id))
+                .map(r => ({
+                    companyId: r.companyId,
+                    contactId: r.contactId,
+                    email: r.email,
+                    name: r.name,
+                    phone: r.phone
+                }))
+
+            if (selectedRecipientsData.length === 0) {
+                toast.error('Debes seleccionar al menos un destinatario')
+                setLoading(false)
                 return
             }
 
@@ -101,6 +185,9 @@ export function SendCampaignDialog({
                     sendViaWhatsapp,
                     scheduledAt: scheduledAt || undefined,
                     executeImmediately: !scheduledAt,
+                    customEmailSubject: emailSubject,
+                    customEmailHtml: emailHtmlBody,
+                    selectedRecipients: selectedRecipientsData
                 }),
             })
 
@@ -127,6 +214,9 @@ export function SendCampaignDialog({
 
     const handleNext = () => {
         if (currentStep === 'audience') {
+            fetchPreview()
+            setCurrentStep('preview_content')
+        } else if (currentStep === 'preview_content') {
             setCurrentStep('options')
         } else if (currentStep === 'options') {
             setCurrentStep('confirm')
@@ -137,13 +227,15 @@ export function SendCampaignDialog({
         if (currentStep === 'confirm') {
             setCurrentStep('options')
         } else if (currentStep === 'options') {
+            setCurrentStep('preview_content')
+        } else if (currentStep === 'preview_content') {
             setCurrentStep('audience')
         }
     }
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Enviar Aviso a Empresas</DialogTitle>
                     <DialogDescription>
@@ -152,15 +244,18 @@ export function SendCampaignDialog({
                 </DialogHeader>
 
                 <Tabs value={currentStep} className="w-full">
-                    <TabsList className="grid w-full grid-cols-3">
+                    <TabsList className="grid w-full grid-cols-4">
                         <TabsTrigger value="audience" disabled={currentStep !== 'audience'}>
                             1. Audiencia
                         </TabsTrigger>
+                        <TabsTrigger value="preview_content" disabled={currentStep !== 'preview_content'}>
+                            2. Contenido
+                        </TabsTrigger>
                         <TabsTrigger value="options" disabled={currentStep !== 'options'}>
-                            2. Opciones
+                            3. Opciones
                         </TabsTrigger>
                         <TabsTrigger value="confirm" disabled={currentStep !== 'confirm'}>
-                            3. Confirmar
+                            4. Confirmar
                         </TabsTrigger>
                     </TabsList>
 
@@ -190,7 +285,172 @@ export function SendCampaignDialog({
                         </div>
                     </TabsContent>
 
-                    {/* Paso 2: Opciones de Envío */}
+                    {/* Paso 2: Destinatarios + Contenido del Email */}
+                    <TabsContent value="preview_content" className="space-y-4">
+                        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+
+                            {/* Columna izquierda: destinatarios */}
+                            <div className="lg:col-span-2 space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <Label className="flex items-center gap-2 font-semibold text-sm">
+                                        <Users className="h-4 w-4" />
+                                        Destinatarios ({selectedRecipients.length}/{previewRecipients.length})
+                                    </Label>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 text-xs"
+                                        onClick={() => {
+                                            if (selectedRecipients.length === previewRecipients.length) {
+                                                setSelectedRecipients([])
+                                            } else {
+                                                setSelectedRecipients(previewRecipients.map(r => r.id))
+                                            }
+                                        }}
+                                    >
+                                        {selectedRecipients.length === previewRecipients.length ? 'Ninguno' : 'Todos'}
+                                    </Button>
+                                </div>
+                                <ScrollArea className="h-[420px] border rounded-md p-2">
+                                    {loadingPreview ? (
+                                        <div className="flex flex-col justify-center items-center h-full gap-2 text-muted-foreground">
+                                            <Loader2 className="h-6 w-6 animate-spin" />
+                                            <span className="text-xs">Cargando destinatarios...</span>
+                                        </div>
+                                    ) : previewRecipients.length === 0 ? (
+                                        <p className="text-sm text-muted-foreground text-center p-4">
+                                            No se encontraron destinatarios con los filtros seleccionados.
+                                        </p>
+                                    ) : (
+                                        <div className="space-y-1">
+                                            {previewRecipients.map((rec) => (
+                                                <div
+                                                    key={rec.id}
+                                                    className="flex items-start gap-2 p-2 rounded hover:bg-muted/50 cursor-pointer"
+                                                    onClick={() => {
+                                                        setSelectedRecipients(prev =>
+                                                            prev.includes(rec.id)
+                                                                ? prev.filter(id => id !== rec.id)
+                                                                : [...prev, rec.id]
+                                                        )
+                                                    }}
+                                                >
+                                                    <Checkbox
+                                                        checked={selectedRecipients.includes(rec.id)}
+                                                        className="mt-0.5 shrink-0"
+                                                        onCheckedChange={(checked) => {
+                                                            setSelectedRecipients(prev =>
+                                                                checked
+                                                                    ? [...prev, rec.id]
+                                                                    : prev.filter(id => id !== rec.id)
+                                                            )
+                                                        }}
+                                                    />
+                                                    <div className="min-w-0">
+                                                        <div className="text-xs font-medium text-primary truncate">{rec.companyName}</div>
+                                                        <div className="text-sm font-medium truncate">{rec.name}</div>
+                                                        <div className="text-xs text-muted-foreground truncate">{rec.email}</div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </ScrollArea>
+                            </div>
+
+                            {/* Columna derecha: contenido del email */}
+                            <div className="lg:col-span-3 space-y-3">
+                                {/* Asunto */}
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="email-subject" className="text-sm font-semibold flex items-center gap-2">
+                                        <Mail className="h-4 w-4" /> Asunto del correo
+                                    </Label>
+                                    <Input
+                                        id="email-subject"
+                                        value={emailSubject}
+                                        onChange={(e) => setEmailSubject(e.target.value)}
+                                        placeholder="Ej: Evento especial - XIXIM Cluster"
+                                    />
+                                </div>
+
+                                {/* Toggle Editar / Vista Previa */}
+                                <div className="flex items-center justify-between">
+                                    <Label className="text-sm font-semibold flex items-center gap-2">
+                                        <Edit3 className="h-4 w-4" /> Cuerpo del correo
+                                    </Label>
+                                    <div className="flex rounded-md border overflow-hidden text-xs">
+                                        <button
+                                            type="button"
+                                            className={`px-3 py-1.5 flex items-center gap-1.5 transition-colors ${contentView === 'edit' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+                                            onClick={() => setContentView('edit')}
+                                        >
+                                            <Edit3 className="h-3 w-3" /> Editar
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={`px-3 py-1.5 flex items-center gap-1.5 transition-colors border-l ${contentView === 'preview' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+                                            onClick={() => setContentView('preview')}
+                                        >
+                                            <Monitor className="h-3 w-3" /> Vista previa
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {contentView === 'edit' ? (
+                                    <RichTextEditor
+                                        value={emailHtmlBody}
+                                        onChange={(html) => setEmailHtmlBody(html)}
+                                        minHeight="300px"
+                                        placeholder="Escribe el contenido del correo..."
+                                        onImageUpload={async (file: File) => {
+                                            try {
+                                                const supabase = createClient()
+                                                const fileExt = file.name.split('.').pop()
+                                                const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`
+                                                const { error } = await supabase.storage
+                                                    .from('announcements')
+                                                    .upload(fileName, file, { cacheControl: '3600', upsert: false })
+                                                if (error) throw error
+                                                const { data: { publicUrl } } = supabase.storage
+                                                    .from('announcements')
+                                                    .getPublicUrl(fileName)
+                                                return publicUrl
+                                            } catch (error) {
+                                                toast.error('Error subiendo imagen')
+                                                return null
+                                            }
+                                        }}
+                                    />
+                                ) : (
+                                    <div className="border rounded-md overflow-hidden bg-muted/20">
+                                        <div className="bg-muted/50 border-b px-3 py-1.5 flex items-center gap-2">
+                                            <div className="flex gap-1">
+                                                <div className="w-2.5 h-2.5 rounded-full bg-red-400" />
+                                                <div className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
+                                                <div className="w-2.5 h-2.5 rounded-full bg-green-400" />
+                                            </div>
+                                            <span className="text-xs text-muted-foreground flex-1 text-center">
+                                                Vista previa — Asunto: {emailSubject}
+                                            </span>
+                                        </div>
+                                        <iframe
+                                            srcDoc={wrapInEmailTemplate(emailHtmlBody)}
+                                            className="w-full border-0"
+                                            style={{ height: '360px' }}
+                                            title="Vista previa del correo"
+                                            sandbox="allow-same-origin"
+                                        />
+                                    </div>
+                                )}
+
+                                <p className="text-xs text-muted-foreground">
+                                    El encabezado y pie XIXIM se agregan automáticamente al enviar.
+                                </p>
+                            </div>
+                        </div>
+                    </TabsContent>
+
+                    {/* Paso 3: Opciones de Envío */}
                     <TabsContent value="options" className="space-y-4">
                         <div className="space-y-4">
                             <div>

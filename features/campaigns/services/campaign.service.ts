@@ -8,6 +8,7 @@ import type {
     Announcement,
 } from '@/lib/types/database'
 import { NotificationService } from '@/features/notifications/services/notification.service'
+import { wrapInEmailTemplate, generateAnnouncementContent } from '@/lib/email-template'
 
 /**
  * Servicio para gestionar campañas de envío masivo de avisos
@@ -98,18 +99,26 @@ export class CampaignService {
         sendgridTemplateId?: string
         scheduledAt?: Date
         createdBy: string
+        customEmailSubject?: string
+        customEmailHtml?: string
+        selectedRecipients?: any[]
     }): Promise<AnnouncementCampaign> {
         const supabase = await createClient()
 
         // Obtener destinatarios para calcular el total
-        const companies = await this.getFilteredCompanies(params.filters, params.sendToAllCompanies)
-        let totalRecipients = companies.length
+        let totalRecipients = 0
+        if (params.selectedRecipients) {
+            totalRecipients = params.selectedRecipients.length
+        } else {
+            const companies = await this.getFilteredCompanies(params.filters, params.sendToAllCompanies)
+            totalRecipients = companies.length
 
-        // Si se envía a contactos también, sumar todos los contactos
-        if (params.sendToContacts) {
-            for (const company of companies) {
-                const contacts = await this.getCompanyContacts(company.id)
-                totalRecipients += contacts.length
+            // Si se envía a contactos también, sumar todos los contactos
+            if (params.sendToContacts) {
+                for (const company of companies) {
+                    const contacts = await this.getCompanyContacts(company.id)
+                    totalRecipients += contacts.length
+                }
             }
         }
 
@@ -119,7 +128,11 @@ export class CampaignService {
                 announcement_id: params.announcementId,
                 name: params.name,
                 description: params.description || null,
-                filters: params.filters as any,
+                filters: {
+                    ...params.filters as any,
+                    customEmailSubject: params.customEmailSubject,
+                    customEmailHtml: params.customEmailHtml
+                },
                 send_to_all_companies: params.sendToAllCompanies,
                 send_to_contacts: params.sendToContacts,
                 total_recipients: totalRecipients,
@@ -142,7 +155,47 @@ export class CampaignService {
     }
 
     /**
-     * Crea los registros de destinatarios para una campaña
+     * Crea los registros de destinatarios para una campaña basado en las selecciones explícitas
+     */
+    static async createRecipientsFromSelection(
+        campaignId: string,
+        selectedRecipients: {
+            companyId: string
+            contactId: string | null
+            email: string
+            name: string
+            phone: string | null
+        }[]
+    ): Promise<void> {
+        const supabase = await createClient()
+        const recipients = selectedRecipients.map(r => ({
+            campaign_id: campaignId,
+            company_id: r.companyId,
+            contact_id: r.contactId || null,
+            recipient_email: r.email,
+            recipient_name: r.name,
+            recipient_phone: r.phone || null,
+            email_status: 'pending',
+            whatsapp_status: 'pending',
+        }))
+
+        // Insertar en lotes para evitar límites de Supabase
+        const batchSize = 500
+        for (let i = 0; i < recipients.length; i += batchSize) {
+            const batch = recipients.slice(i, i + batchSize)
+            const { error } = await supabase.from('announcement_recipients').insert(batch)
+
+            if (error) {
+                console.error('Error creando destinatarios por selección:', error)
+                throw new Error('Error creando destinatarios por selección')
+            }
+        }
+
+        console.log(`✅ Creados ${recipients.length} destinatarios seleccionados explicitamente`)
+    }
+
+    /**
+     * Crea los registros de destinatarios para una campaña (basado en filtros, fallback)
      */
     static async createRecipients(
         campaignId: string,
@@ -257,9 +310,17 @@ export class CampaignService {
                     },
                 }))
 
+                // Extraer configuraciones custom guardadas temporalmente en filters
+                const customEmailSubject = (campaign.filters as any)?.customEmailSubject
+                const customEmailHtml = (campaign.filters as any)?.customEmailHtml
+
                 // Preparar configuración del email
-                const emailSubject = `${announcement.title} - XIXIM Cluster`
-                const emailHtml = this.generateEmailHTML(announcement)
+                const emailSubject = customEmailSubject || `${announcement.title} - XIXIM Cluster`
+                // Si hay contenido custom, envolverlo en el template profesional
+                // Si no, generar desde el anuncio completo
+                const emailHtml = customEmailHtml
+                    ? wrapInEmailTemplate(customEmailHtml, announcement.priority)
+                    : this.generateEmailHTML(announcement)
 
                 const emailResults = await NotificationService.sendBulkEmails(
                     emailRecipients,
@@ -364,78 +425,13 @@ export class CampaignService {
      * Genera el HTML del email para un anuncio
      */
     private static generateEmailHTML(announcement: Announcement): string {
-        return `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        .header {
-            background-color: #4F46E5;
-            color: white;
-            padding: 30px;
-            text-align: center;
-            border-radius: 8px 8px 0 0;
-        }
-        .content {
-            background-color: #ffffff;
-            padding: 30px;
-            border: 1px solid #e5e7eb;
-            border-top: none;
-        }
-        .footer {
-            background-color: #f9fafb;
-            padding: 20px;
-            text-align: center;
-            font-size: 12px;
-            color: #6b7280;
-            border-radius: 0 0 8px 8px;
-        }
-        .badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 600;
-            margin-bottom: 10px;
-        }
-        .badge-urgent { background-color: #fee2e2; color: #991b1b; }
-        .badge-high { background-color: #fed7aa; color: #9a3412; }
-        .badge-normal { background-color: #dbeafe; color: #1e40af; }
-        .badge-low { background-color: #f3f4f6; color: #374151; }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>XIXIM Cluster</h1>
-        <p>Cluster de Empresas de Base Tecnológica</p>
-    </div>
-    <div class="content">
-        ${announcement.priority === 'urgent' ? '<span class="badge badge-urgent">URGENTE</span>' : ''}
-        ${announcement.priority === 'high' ? '<span class="badge badge-high">ALTA PRIORIDAD</span>' : ''}
-        <h2>${announcement.title}</h2>
-        ${announcement.excerpt ? `<p><strong>${announcement.excerpt}</strong></p>` : ''}
-        <div>
-            ${announcement.content}
-        </div>
-        ${announcement.image_url ? `<p><img src="${announcement.image_url}" alt="Imagen" style="max-width: 100%; height: auto; margin-top: 20px;" /></p>` : ''}
-    </div>
-    <div class="footer">
-        <p>Este mensaje fue enviado por XIXIM Cluster</p>
-        <p>Si tienes dudas, contacta a nuestro equipo</p>
-    </div>
-</body>
-</html>
-        `.trim()
+        const content = generateAnnouncementContent({
+            title: announcement.title,
+            excerpt: announcement.excerpt,
+            content: announcement.content,
+            imageUrl: announcement.image_url,
+        })
+        return wrapInEmailTemplate(content, announcement.priority)
     }
 
     /**

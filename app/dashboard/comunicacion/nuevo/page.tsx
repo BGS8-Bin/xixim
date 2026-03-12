@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { createClient } from "@/lib/supabase/client"
 import { ArrowLeft, Loader2, Save, Send, AlertTriangle } from "lucide-react"
+import { RichTextEditor } from "@/components/ui/rich-text-editor"
 
 const announcementTypes = [
   { value: "general", label: "General" },
@@ -47,12 +48,48 @@ export default function NuevoAnuncioPage() {
     setFormData({ ...formData, [e.target.name]: e.target.value })
   }
 
+  const handleEditorChange = (value: string) => {
+    setFormData({ ...formData, content: value })
+  }
+
   const handleSelectChange = (name: string, value: string) => {
     setFormData({ ...formData, [name]: value })
   }
 
   const handleSwitchChange = (name: string, checked: boolean) => {
     setFormData({ ...formData, [name]: checked })
+  }
+
+  const handleImageUpload = async (file: File): Promise<string | null> => {
+    try {
+      const supabase = createClient()
+
+      // Check if bucket exists, if not this command will fail gracefully but we should create it manually first
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`
+      const filePath = `${fileName}`
+
+      const { data, error } = await supabase.storage
+        .from('announcements')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        })
+
+      if (error) {
+        console.error('Error uploading image:', error)
+        throw error
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('announcements')
+        .getPublicUrl(filePath)
+
+      return publicUrl
+    } catch (error) {
+      console.error('Error in handleImageUpload:', error)
+      return null
+    }
   }
 
   const handleSubmit = async (publish: boolean) => {
@@ -91,7 +128,7 @@ export default function NuevoAnuncioPage() {
     }
   }
 
-  const isValid = formData.title.trim() && formData.content.trim()
+  const isValid = formData.title.trim() && formData.content.trim() && formData.content !== '<p></p>'
 
   return (
     <div className="space-y-6">
@@ -150,13 +187,10 @@ export default function NuevoAnuncioPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="content">Contenido *</Label>
-                <Textarea
-                  id="content"
-                  name="content"
+                <RichTextEditor
                   value={formData.content}
-                  onChange={handleChange}
-                  placeholder="Escribe el contenido completo del anuncio..."
-                  rows={10}
+                  onChange={handleEditorChange}
+                  onImageUpload={handleImageUpload}
                 />
               </div>
             </CardContent>
